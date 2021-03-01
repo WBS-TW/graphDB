@@ -1,0 +1,203 @@
+---
+title: "NTS2Source"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+
+library(DiagrammeR)
+
+```
+
+
+# Concept of NTS2Source
+
+```{r}
+
+grViz("
+digraph Scheme {
+      
+# graph statement
+graph [layout = dot, overlap = true]
+      
+# node statements
+node [shape = box,
+fontname = Helvetica, fontsize = 20]
+
+# Sample information
+SAMP1 [label = 'Sample_Id']
+SAMP2 [label = 'Sample_MetaData']
+
+# Data pretreatment and data analysis
+DATA1 [label = 'MS_Ready']
+
+# Chemical analysis
+ANAL1 [label = 'Analysis_MassSpec']
+ANAL2 [label = 'Quantification']
+
+# Chemical information
+CHEM1 [label = 'Chemical_Id']
+CHEM2 [label = 'Chemical_PhysicalProp']
+
+# Various sources of chemicals
+
+
+# Libraries should be from different sources: NIST, Mona, MassbankEU, InHouse,..
+LIB1 [label = 'Library_Spec']
+LIB2 [label = 'Library_Toxcast']
+
+# List such as NormaNews suspect list, InHouse,..
+LIST1 [label = 'List_Susp']
+LIST2 [label = 'List_TransfProd_Pred']
+LIST3 [label = 'Source_Products']
+
+# Different output results, such as msp of spectrum
+RES1 [label = 'Output_RawData']
+
+# Various algorithm to match similarities, cosine similarity,..
+MOD1 [label = 'Algorithm_Match']
+MOD2 [label = 'Nontarget_HCA']
+MOD3 [label = 'Nontarget_MassDefect']
+
+ID1 [label = 'Identification']
+
+EXPO1 [label = 'Exposure_IndoorDust']
+
+
+###### edge statements ######
+
+CHEM1 -> CHEM2
+SAMP2 -> SAMP1
+SAMP1 -> ANAL1
+ANAL1 -> RES1 [label = 'GIVES']
+
+
+LIST1 -> DATA1
+{LIB1 DATA1} -> MOD1
+RES1 -> {MOD1 MOD2 MOD3}
+{MOD1 MOD2 MOD3} -> ID1 [label = 'GIVES']
+
+ID1 -> CHEM1 [label = 'GIVES']
+CHEM1 -> LIST3 [label = 'FOUND_IN']
+CHEM1 -> LIB2
+
+CHEM1 -> LIST2 -> RES1
+{CHEM1 ID1} -> ANAL2
+
+{ANAL2 CHEM2 LIB2} -> EXPO1
+      
+      }
+    
+")
+
+ 
+
+
+
+```
+
+
+
+
+# Ontology  
+https://www.ebi.ac.uk/ols/ontologies/cheminf  
+http://www.obofoundry.org/ontology/cheminf.html  
+
+
+# Edge labels:  
+- GIVES:  
+- FOUND_IN:  
+
+
+Create graph database using Neo4j desktop
+
+Copy the files to the local import folder (in this case it was at "D:\Program\Neo4js_data\relate-data\dbmss\dbms-a42acde1-a3d0-4c0c-930f-99319d3b5998")
+
+LOAD csv file for Sundahus database:  
+
+```{r eval=FALSE}
+
+LOAD CSV FROM "file:///SH_data.csv" AS line FIELDTERMINATOR '\u0009' CREATE (:Products
+  {Varumarke: line[1],
+  Namn: line[2],
+  Beskrivning: line [3],
+  Artikelnummer: line [4],
+  BSAB_kod: line [5],
+  BK04_1: line [6],
+  BK04_2: line [7],
+  BK04_3: line [8]})
+  
+```
+
+DELETE node
+```{r eval=FALSE}
+
+MATCH (n: Products) DELETE (n)
+
+```
+
+
+CREATE node
+
+```{r eval=FALSE}
+
+CREATE (:Chemical 
+      {Chemical_name: "BDE-99",
+       CAS: "3434-343-33"})
+
+```
+
+CREATE links between nodes
+
+```{r eval=FALSE}
+
+MATCH (a:Chemical), (b:Products)
+WHERE a.Chemical_name = "BDE-99" AND b.Namn = "Vattenburen klarlack for brandisolering av tra, plywood, spanskivor och andra traprodukter utomhus."
+CREATE (a)-[r:RELTYPE {name: a.name + '<->' + b.name}]->(b)
+RETURN type(r), r.nam
+
+```
+
+
+
+```{r eval=FALSE}
+
+CREATE p = (Chemical {Chemical_name:"BDE-99"})-[:FOUND_IN]->(Products)
+```
+
+
+
+
+
+
+# Background on graph database
+
+Knowledge Graphs are effective tools to organize data in an unbiased and unsupervised manner. The 
+main difference between conventional databases and Knowledge Graph is that in a conventional 
+database one needs to know the question in order to query the database and retrieve the correct 
+answer. Knowledge Graphs can be analysed to identify unknown patterns of relatedness between the 
+data points, which could not be extrapolated when considering them individually. The computational 
+AI-based framework needed to learn from Knowledge is well established and successfully used in various fields, but thus far not fully exploited in toxicology.
+Watson Health https://www.ibm.com/watson-health ; Google Knowledge Graph https://www.google.com ; IBM RXN https://rxn.res.ibm.com/ ;
+https://www.telegraph.co.uk/technology/2021/01/18/drugs-will-designed-ai-decades-end/#comment
+
+The nodes of the RESONATE Knowledge Graph will be chemicals, exposures, doses, genes, proteins, cells, tissues,
+diseases, regulatory requirements, while the connections between the nodes will be different aspects of their
+relationships. For instance, chemicals will share edges with genes whose expression is altered by the exposure, as
+recorded in manually curated toxicogenomic data. Likewise, tissues, cell lines or in vitro models will share
+connections with genes (based on the expression patterns recorded in relevant omics datasets). Based on the set of
+edges explicitly present in the Knowledge Graph (e.g., chemical.X - gene.A - cell.Y - phenotype.W), we will first
+extrapolate the intrinsic edges that allow a simplified representation of the data (eg. chemical.X - cell.Y; chemical.X
+- phenotype.W; etc). Next, by the use of specific AI algorithms that are able to learn from the structure of the graph,
+we will infer new edges through link prediction, leading to further new discoveries. The first and foremost question
+we want to answer with this approach is: “is there an interaction between exposure X and Y?”, and next: “is the effect
+of the interaction additive, antagonistic or synergistic?” This includes analysis of the quality of the interaction
+between components of a mixture, predicted/extracted from data generated by the exposure, hazard, risk and IATA
+modelling in WPs2-4. Additional relevant aspects that we will be able to address by learning from the RESONATE
+Knowledge Graph are, for instance, related to which in vitro system is the best to investigate a phenotype of interest,
+which characteristics need a computational model to be regulatory-ready, or which exposures of mixture of exposures
+are more probable to cause a certain phenotype in individuals with a certain disease. By continuously updating the
+Knowledge Graph with outputs from the predictive AI models, the ability of the Knowledge Graph to support
+interpretation of mixture effects will rapidly increase.
