@@ -34,7 +34,7 @@ SAMP2 [label = 'Sample_MetaData']
 DATA1 [label = 'MS_Ready']
 
 # Chemical analysis
-ANAL1 [label = 'Analysis_MassSpec']
+ANAL1 [label = 'Analysis_Method']
 ANAL2 [label = 'Quantification']
 
 # Chemical information
@@ -70,16 +70,16 @@ EXPO1 [label = 'Exposure_IndoorDust']
 
 CHEM1 -> CHEM2
 SAMP2 -> SAMP1
-SAMP1 -> ANAL1
-ANAL1 -> RES1 [label = 'GIVES']
+SAMP1 -> ANAL1 [label = 'ANALYZED_BY']
+ANAL1 -> RES1 [label = 'RESULT_IN']
 
 
-LIST1 -> DATA1
-{LIB1 DATA1} -> MOD1
-RES1 -> {MOD1 MOD2 MOD3}
-{MOD1 MOD2 MOD3} -> ID1 [label = 'GIVES']
+LIST1 -> DATA1 [label = 'CONVERTED_TO']
+{LIB1 DATA1} -> MOD1 [label = 'INPUT_TO']
+RES1 -> {MOD1 MOD2 MOD3} [label = 'ANALYSIS_USING']
+{MOD1 MOD2 MOD3} -> ID1 [label = 'RESULT_IN']
 
-ID1 -> CHEM1 [label = 'GIVES']
+ID1 -> CHEM1 [label = 'RESULT_IN']
 CHEM1 -> LIST3 [label = 'FOUND_IN']
 CHEM1 -> LIB2
 
@@ -100,6 +100,44 @@ CHEM1 -> LIST2 -> RES1
 
 
 
+# Concept 2 of NTS2Source
+
+```{r}
+
+grViz("
+digraph Scheme {
+      
+# graph statement
+graph [layout = dot, overlap = true]
+      
+# node statements
+node [shape = box,
+fontname = Helvetica, fontsize = 20]
+
+###### Nodes ##########
+SAMPLE [label = 'Sample']
+METHOD [label = 'Method']
+PEAL_ID1 [label = 'Peak_ID1']
+PEAK_ID2 [label = 'Peak_ID2']
+
+
+###### Edges ######
+
+SAMPLE -> METHOD [label = 'ANALYZED_BY']
+METHOD -> PEAK_ID1 [label = 'RESULTS_PEAKLIST']
+METHOD -> PEAK_ID2 [label = 'RESULTS_PEAKLIST']
+      
+      }
+    
+")
+
+ 
+
+
+
+```
+
+
 
 # Ontology  
 https://www.ebi.ac.uk/ols/ontologies/cheminf  
@@ -107,35 +145,94 @@ http://www.obofoundry.org/ontology/cheminf.html
 
 
 # Edge labels:  
-- GIVES:  
-- FOUND_IN:  
+- ANALYZED_BY  
+- RESULT_IN  
+- FOUND_IN  
+- CONVERTED_TO  
+- INPUT_TO  
+- ANALYSIS_USING  
+
 
 
 Create graph database using Neo4j desktop
 
 Copy the files to the local import folder (in this case it was at "D:\Program\Neo4js_data\relate-data\dbmss\dbms-a42acde1-a3d0-4c0c-930f-99319d3b5998")
 
-LOAD csv file for Sundahus database:  
+LOAD csv file for Test database:  
 
 ```{r eval=FALSE}
 
-LOAD CSV FROM "file:///SH_data.csv" AS line FIELDTERMINATOR '\u0009' CREATE (:Products
-  {Varumarke: line[1],
-  Namn: line[2],
-  Beskrivning: line [3],
-  Artikelnummer: line [4],
-  BSAB_kod: line [5],
-  BK04_1: line [6],
-  BK04_2: line [7],
-  BK04_3: line [8]})
-  
+###Example### 
+
+//Load Sample_ID.csv
+
+LOAD CSV WITH HEADERS FROM "file:///Sample_ID.csv" AS csvLine
+CREATE (p:Sample {SampleID: csvLine.SampleID, Location: csvLine.Location, Region: csvLine.Region, Weight: toFloat(csvLine.Weight)})
+
+//Load Analysis_Method.csv
+LOAD CSV WITH HEADERS FROM "file:///Analysis_Method.csv" AS csvLine
+CREATE (p:Method {SampleID: csvLine.SampleID, AnalysisID: csvLine.AnalysisID, AnalysisMethod: csvLine.AnalysisMethod})
+
+
+//Load Analysis00001.csv
+
+LOAD CSV WITH HEADERS FROM "file:///Analysis_00001.csv" AS csvLine
+CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: csvLine.Mz, Rt: csvLine.Rt, Area: csvLine.Area})
+
+//Load Analysis00002.csv
+
+LOAD CSV WITH HEADERS FROM "file:///Analysis_00002.csv" AS csvLine
+CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: csvLine.Mz, Rt: csvLine.Rt, Area: csvLine.Area})
+
 ```
+
+
+Create relationships
+```{r eval=FALSE}
+
+###Example### 
+
+//Create relationships between all samples in alignment peaks for same method
+MATCH (m:Method), (p:Method)
+WHERE m.AnalysisMethod = p.AnalysisMethod
+CREATE (m)-[w:GROUPED_PEAKLIST]->(p)
+RETURN type(w)
+
+//remove self relationships
+MATCH (m:Method)-[rel:GROUPED_PEAKLIST]->(m) 
+DELETE rel
+
+//create relationship between Sample and Method
+
+MATCH (s:Sample), (m:Method)
+WHERE s.SampleID = m.SampleID
+CREATE (s)-[w:ANALYZED_IN]->(m)
+RETURN type(w)
+
+//Create relationship between AnalysisID and Feature
+
+MATCH (f:Feature), (m:Method)
+WHERE m.AnalysisID = f.AnalysisID
+CREATE (m)-[w:RESULTS_PEAKLIST]->(f)
+RETURN type(w)
+
+
+
+```
+
+
+
+
 
 DELETE node
 ```{r eval=FALSE}
 
 MATCH (n: Products) DELETE (n)
 
+
+# Delete all nodes and relationships
+MATCH (n)
+DETACH DELETE n
 ```
 
 

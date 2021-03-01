@@ -1,0 +1,5 @@
+SampleID,Location,Region,Weight
+SID1,Site1,Region1,0.32
+SID2,Site1,Region1,0.43
+SID3,Site2,Region1,0.23
+SID4,Site2,Region2,0.34

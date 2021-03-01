@@ -1,0 +1,9 @@
+SampleID,AnalysisID,Method
+SID1,Analysis_00001,LC_pos
+SID2,Analysis_00002,LC_pos
+SID3,Analysis_00003,LC_pos
+SID4,Analysis_00004,LC_pos
+SID1,Analysis_00005,LC_neg
+SID2,Analysis_00006,LC_neg
+SID3,Analysis_00007,LC_neg
+SID4,Analysis_00008,LC_neg
