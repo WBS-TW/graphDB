@@ -162,27 +162,32 @@ LOAD csv file for Test database:
 
 ```{r eval=FALSE}
 
+
+# Add uniqueness constraint
+CREATE CONSTRAINT UniqueSampleID ON (p:Sample) ASSERT p.SampleID IS UNIQUE
+
 ###Example### 
 
 //Load Sample_ID.csv
 
 LOAD CSV WITH HEADERS FROM "file:///Sample_ID.csv" AS csvLine
-CREATE (p:Sample {SampleID: csvLine.SampleID, Location: csvLine.Location, Region: csvLine.Region, Weight: toFloat(csvLine.Weight)})
+CREATE (p:Sample {SampleID: csvLine.SampleID, Location: csvLine.Location, Region: csvLine.Region, Weight: toFloat(csvLine.Weight)});
 
 //Load Analysis_Method.csv
 LOAD CSV WITH HEADERS FROM "file:///Analysis_Method.csv" AS csvLine
-CREATE (p:Method {SampleID: csvLine.SampleID, AnalysisID: csvLine.AnalysisID, AnalysisMethod: csvLine.AnalysisMethod})
+CREATE (p:Method {SampleID: csvLine.SampleID, AnalysisID: csvLine.AnalysisID, AnalysisMethod: csvLine.AnalysisMethod});
 
 
 //Load Analysis00001.csv
-
 LOAD CSV WITH HEADERS FROM "file:///Analysis_00001.csv" AS csvLine
-CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: csvLine.Mz, Rt: csvLine.Rt, Area: csvLine.Area})
+CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: toFloat(csvLine.Mz), Rt: toFloat(csvLine.Rt), Area: toFloat(csvLine.Area), Component: csvLine.Component});
 
 //Load Analysis00002.csv
-
 LOAD CSV WITH HEADERS FROM "file:///Analysis_00002.csv" AS csvLine
-CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: csvLine.Mz, Rt: csvLine.Rt, Area: csvLine.Area})
+CREATE (f:Feature {AnalysisID: csvLine.AnalysisID, RowID: csvLine.RowID, Mz: toFloat(csvLine.Mz), Rt: toFloat(csvLine.Rt), Area: toFloat(csvLine.Area), Component: csvLine.Component});
+
+
+//Alternative way: put all features info into the node
 
 ```
 
@@ -196,32 +201,53 @@ Create relationships
 MATCH (m:Method), (p:Method)
 WHERE m.AnalysisMethod = p.AnalysisMethod
 CREATE (m)-[w:GROUPED_PEAKLIST]->(p)
-RETURN type(w)
+RETURN type(w);
 
 //remove self relationships
 MATCH (m:Method)-[rel:GROUPED_PEAKLIST]->(m) 
-DELETE rel
+DELETE rel;
 
 //create relationship between Sample and Method
-
 MATCH (s:Sample), (m:Method)
 WHERE s.SampleID = m.SampleID
-CREATE (s)-[w:ANALYZED_IN]->(m)
-RETURN type(w)
+CREATE (s)-[w:ANALYZED_BY]->(m)
+RETURN type(w);
 
 //Create relationship between AnalysisID and Feature
-
 MATCH (f:Feature), (m:Method)
 WHERE m.AnalysisID = f.AnalysisID
 CREATE (m)-[w:RESULTS_PEAKLIST]->(f)
-RETURN type(w)
+RETURN type(w);
 
 
 
 ```
 
 
+Similarity
 
+```{r eval=FALSE}
+
+//Example
+RETURN gds.alpha.similarity.cosine([3,8,7,5,2,9], [10,8,6,6,4,5]) AS similarity;
+
+//Cosine similarity between two nodes
+MATCH (m1:Method {AnalysisID: "Analysis_00001"})-[group1:RESULTS_PEAKLIST]->(f1:Feature)
+MATCH (m2:Method {AnalysisID: "Analysis_00002"})-[group2:RESULTS_PEAKLIST]->(f2:Feature)
+RETURN m1.AnalysisID AS from,
+       m2.AnalysisID AS to,
+       gds.alpha.similarity.cosine(collect(f1.Mz), collect(f2.Mz)) AS similarity;
+
+
+//Jaccard similarity between two nodes
+MATCH (m1:Method {AnalysisID: "Analysis_00001"})-[group1:RESULTS_PEAKLIST]->(f1:Feature)
+MATCH (m2:Method {AnalysisID: "Analysis_00002"})-[group2:RESULTS_PEAKLIST]->(f2:Feature)
+RETURN m1.AnalysisID AS from,
+       m2.AnalysisID AS to,
+       gds.alpha.similarity.jaccard(collect(f1.Mz), collect(f2.Mz)) AS similarity;
+
+
+```
 
 
 DELETE node
@@ -233,35 +259,6 @@ MATCH (n: Products) DELETE (n)
 # Delete all nodes and relationships
 MATCH (n)
 DETACH DELETE n
-```
-
-
-CREATE node
-
-```{r eval=FALSE}
-
-CREATE (:Chemical 
-      {Chemical_name: "BDE-99",
-       CAS: "3434-343-33"})
-
-```
-
-CREATE links between nodes
-
-```{r eval=FALSE}
-
-MATCH (a:Chemical), (b:Products)
-WHERE a.Chemical_name = "BDE-99" AND b.Namn = "Vattenburen klarlack for brandisolering av tra, plywood, spanskivor och andra traprodukter utomhus."
-CREATE (a)-[r:RELTYPE {name: a.name + '<->' + b.name}]->(b)
-RETURN type(r), r.nam
-
-```
-
-
-
-```{r eval=FALSE}
-
-CREATE p = (Chemical {Chemical_name:"BDE-99"})-[:FOUND_IN]->(Products)
 ```
 
 
